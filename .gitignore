@@ -1,0 +1,10 @@
+venv/
+__pycache__/
+*.pyc
+server.log
+server.pid
+state.json
+wallpapers/*
+!wallpapers/.gitkeep
+thumbs/*
+!thumbs/.gitkeep

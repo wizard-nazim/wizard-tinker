@@ -1,0 +1,34 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Wallpaper Manager</title>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+  <header>
+    <h1>Wallpaper Manager</h1>
+    <div class="header-actions">
+      <label class="btn primary">
+        Import wallpaper
+        <input type="file" id="file-input" accept="image/*,.gif,.mp4,.webm,.mkv,.mov" hidden>
+      </label>
+      <button class="btn" id="quit-btn">Quit</button>
+    </div>
+  </header>
+
+  <section class="current-bar">
+    <div id="current-info">Loading…</div>
+    <label class="switch">
+      <input type="checkbox" id="live-toggle">
+      <span class="slider"></span>
+    </label>
+    <span id="live-label">Live</span>
+  </section>
+
+  <main id="gallery" class="gallery"></main>
+
+  <script src="/static/app.js"></script>
+</body>
+</html>
