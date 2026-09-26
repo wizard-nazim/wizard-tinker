@@ -1,4 +1,4 @@
-# Omarchy Live Wallpaper Setup
+# WizardTinker
 
 A small local web app for managing your desktop wallpaper on [Omarchy](https://omarchy.org/)
 (Arch + Hyprland) — import static images or animated GIFs/video, keep a
