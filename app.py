@@ -22,9 +22,17 @@ PID_FILE = APP_DIR / "server.pid"
 HOME = Path.home()
 SHELL_JSON = HOME / ".config" / "omarchy" / "shell.json"
 LOCK_BACKGROUND_LINK = HOME / ".local" / "state" / "omarchy" / "current" / "background"
+THEMES_FILE = APP_DIR / "themes.json"
 
 ANIMATED_EXTS = {".gif", ".mp4", ".webm", ".mkv", ".mov"}
 IMAGE_EXTS = {".jpg", ".jpeg", ".png", ".webp", ".bmp"}
+
+LOCK_DESIGN_IDS = [
+    "card", "classic", "editorial", "zen", "split", "terminal", "ring",
+    "poster", "dock", "aurora", "analog", "flip", "island", "cinema",
+    "sheet", "neon", "calendar", "frame", "dayline", "profile", "weather",
+    "music", "system", "rain",
+]
 
 MPV_OPTS = "no-audio loop-file=inf hwdec=auto panscan=1.0"
 
@@ -39,6 +47,16 @@ def load_state():
 
 def save_state(state):
     STATE_FILE.write_text(json.dumps(state, indent=2))
+
+
+def load_themes():
+    if THEMES_FILE.exists():
+        return json.loads(THEMES_FILE.read_text())
+    return {"themes": []}
+
+
+def save_themes(themes):
+    THEMES_FILE.write_text(json.dumps(themes, indent=2))
 
 
 def is_animated(filename):
@@ -157,6 +175,10 @@ def set_account_icon(path):
         "--method", "org.freedesktop.Accounts.User.SetIconFile",
         str(path),
     ])
+
+
+def set_lock_design(design_id):
+    return run(["omarchy-shell", "lock", "setDesign", design_id])
 
 
 def apply_current(state):
@@ -292,6 +314,139 @@ def api_set_profile_pic():
 
     notify(f"Profile picture: {item['name']}", glyph="person")
     return jsonify({"ok": True})
+
+
+@app.route("/api/lock-design")
+def api_lock_design_get():
+    result = run(["omarchy-shell", "lock", "design"])
+    return jsonify({"design": result.stdout.strip(), "designs": LOCK_DESIGN_IDS})
+
+
+@app.route("/api/lock-design", methods=["POST"])
+def api_lock_design_set():
+    design_id = request.json.get("id")
+    if design_id not in LOCK_DESIGN_IDS:
+        return jsonify({"error": "unknown design"}), 400
+    result = set_lock_design(design_id)
+    if result.returncode != 0:
+        return jsonify({"error": result.stderr.strip() or "failed to set design"}), 500
+    notify(f"Lock design: {design_id}", glyph="lock")
+    return jsonify({"ok": True, "lock_design": design_id})
+
+
+@app.route("/api/lock-design/preview", methods=["POST"])
+def api_lock_design_preview():
+    design_id = request.json.get("id")
+    if design_id not in LOCK_DESIGN_IDS:
+        return jsonify({"error": "unknown design"}), 400
+    run(["omarchy-shell", "lock", "previewDesign", design_id])
+    return jsonify({"ok": True})
+
+
+@app.route("/api/lock-blur")
+def api_lock_blur_get():
+    result = run(["omarchy-shell", "lock", "blur"])
+    try:
+        value = float(result.stdout.strip())
+    except ValueError:
+        value = None
+    if value is not None and value < 0:
+        value = None  # QML's sentinel for "no override set"
+    return jsonify({"blur": value})
+
+
+@app.route("/api/lock-blur", methods=["POST"])
+def api_lock_blur_set():
+    value = request.json.get("value")
+    try:
+        value = float(value)
+    except (TypeError, ValueError):
+        return jsonify({"error": "invalid blur value"}), 400
+    if not 0 <= value <= 1:
+        return jsonify({"error": "blur must be between 0 and 1"}), 400
+    result = run(["omarchy-shell", "lock", "setBlur", str(value)])
+    if result.returncode != 0:
+        return jsonify({"error": result.stderr.strip() or "failed to set blur"}), 500
+    return jsonify({"ok": True, "lock_blur": value})
+
+
+@app.route("/api/themes")
+def api_themes_list():
+    return jsonify(load_themes())
+
+
+@app.route("/api/themes", methods=["POST"])
+def api_themes_create():
+    name = (request.json.get("name") or "").strip()
+    if not name:
+        return jsonify({"error": "name required"}), 400
+
+    state = load_state()
+    themes = load_themes()
+    navbar_status = run(["omarchy-navbar", "status"]).stdout.strip().split(" ")[0]
+    try:
+        lock_blur = float(run(["omarchy-shell", "lock", "blur"]).stdout.strip())
+    except ValueError:
+        lock_blur = -1
+    lock_blur_out = lock_blur if lock_blur >= 0 else None
+
+    themes["themes"] = [t for t in themes["themes"] if t["name"] != name]
+    themes["themes"].append({
+        "name": name,
+        "wallpaper_id": state.get("current"),
+        "lock_design": run(["omarchy-shell", "lock", "design"]).stdout.strip(),
+        "navbar_preset": navbar_status if navbar_status in ("pill", "default") else "default",
+        "lock_blur": lock_blur_out,
+    })
+    save_themes(themes)
+    return jsonify({"ok": True, "themes": themes["themes"]})
+
+
+def apply_theme(name):
+    """Apply a saved theme's wallpaper + lock design + navbar preset + blur.
+
+    Shared by the /api/themes/apply route and the CLI's `theme apply`.
+    """
+    theme = next((t for t in load_themes()["themes"] if t["name"] == name), None)
+    if theme is None:
+        return False, "not found"
+
+    state = load_state()
+    wallpaper_id = theme.get("wallpaper_id")
+    if wallpaper_id and any(g["id"] == wallpaper_id for g in state["gallery"]):
+        item = next(g for g in state["gallery"] if g["id"] == wallpaper_id)
+        state["current"] = wallpaper_id
+        if not item["animated"]:
+            state["live"] = False
+        save_state(state)
+        apply_current(state)
+
+    if theme.get("lock_design"):
+        set_lock_design(theme["lock_design"])
+    if theme.get("lock_blur") is not None:
+        run(["omarchy-shell", "lock", "setBlur", str(theme["lock_blur"])])
+    run(["omarchy-navbar", theme.get("navbar_preset") or "default"])
+
+    notify(f"Theme: {name}", glyph="image")
+    return True, None
+
+
+@app.route("/api/themes/apply", methods=["POST"])
+def api_themes_apply():
+    name = request.json.get("name")
+    ok, error = apply_theme(name)
+    if not ok:
+        return jsonify({"error": error}), 404
+    return jsonify({"ok": True})
+
+
+@app.route("/api/themes/delete", methods=["POST"])
+def api_themes_delete():
+    name = request.json.get("name")
+    themes = load_themes()
+    themes["themes"] = [t for t in themes["themes"] if t["name"] != name]
+    save_themes(themes)
+    return jsonify({"ok": True, "themes": themes["themes"]})
 
 
 @app.route("/api/delete", methods=["POST"])

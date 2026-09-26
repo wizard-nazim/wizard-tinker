@@ -4,8 +4,24 @@ const liveToggle = document.getElementById("live-toggle");
 const liveLabel = document.getElementById("live-label");
 const fileInput = document.getElementById("file-input");
 const quitBtn = document.getElementById("quit-btn");
+const lockDesignsEl = document.getElementById("lock-designs");
+const blurSlider = document.getElementById("blur-slider");
+const blurValueEl = document.getElementById("blur-value");
+const themesEl = document.getElementById("themes");
+const themeNameInput = document.getElementById("theme-name");
+const saveThemeBtn = document.getElementById("save-theme-btn");
 
 let state = { current: null, live: false, gallery: [] };
+let currentLockDesign = null;
+let LOCK_DESIGN_IDS = [];
+
+function debounce(fn, ms) {
+  let timer;
+  return (...args) => {
+    clearTimeout(timer);
+    timer = setTimeout(() => fn(...args), ms);
+  };
+}
 
 async function api(path, opts) {
   const res = await fetch(path, opts);
@@ -103,6 +119,137 @@ async function del(id) {
   render();
 }
 
+function renderLockDesigns(designs) {
+  lockDesignsEl.innerHTML = "";
+  for (const id of designs) {
+    const card = document.createElement("div");
+    card.className = "design-card" + (id === currentLockDesign ? " active" : "");
+    card.textContent = id;
+    card.addEventListener("mouseenter", () => {
+      api("/api/lock-design/preview", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id }),
+      }).catch(() => {});
+    });
+    card.addEventListener("click", () => selectLockDesign(id));
+    lockDesignsEl.appendChild(card);
+  }
+}
+
+async function selectLockDesign(id) {
+  try {
+    await api("/api/lock-design", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id }),
+    });
+    currentLockDesign = id;
+    renderLockDesigns(LOCK_DESIGN_IDS);
+  } catch (e) {
+    alert("Couldn't set lock design: " + e.message);
+  }
+}
+
+async function loadLockDesign() {
+  const data = await api("/api/lock-design");
+  currentLockDesign = data.design;
+  LOCK_DESIGN_IDS = data.designs;
+  renderLockDesigns(LOCK_DESIGN_IDS);
+}
+
+async function loadLockBlur() {
+  const data = await api("/api/lock-blur");
+  const pct = data.blur === null ? 85 : Math.round(data.blur * 100);
+  blurSlider.value = pct;
+  blurValueEl.textContent = pct + "%";
+}
+
+const sendBlur = debounce(async (pct) => {
+  try {
+    await api("/api/lock-blur", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ value: pct / 100 }),
+    });
+  } catch (e) {
+    alert("Couldn't set blur: " + e.message);
+  }
+}, 300);
+
+blurSlider.addEventListener("input", () => {
+  blurValueEl.textContent = blurSlider.value + "%";
+  sendBlur(Number(blurSlider.value));
+});
+
+function renderThemes(themes) {
+  themesEl.innerHTML = "";
+  if (themes.length === 0) {
+    themesEl.innerHTML = '<div class="empty">No themes saved yet.</div>';
+    return;
+  }
+  for (const theme of themes) {
+    const card = document.createElement("div");
+    card.className = "theme-card";
+    card.innerHTML = `
+      <span class="name" title="${theme.name}">${theme.name}</span>
+      <div class="theme-actions">
+        <button class="apply">Apply</button>
+        <button class="del" title="Delete">✕</button>
+      </div>
+    `;
+    card.querySelector(".apply").addEventListener("click", () => applyTheme(theme.name));
+    card.querySelector(".del").addEventListener("click", () => deleteTheme(theme.name));
+    themesEl.appendChild(card);
+  }
+}
+
+async function loadThemes() {
+  const data = await api("/api/themes");
+  renderThemes(data.themes);
+}
+
+async function applyTheme(name) {
+  try {
+    await api("/api/themes/apply", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name }),
+    });
+    await refresh();
+    await loadLockDesign();
+    await loadLockBlur();
+  } catch (e) {
+    alert("Couldn't apply theme: " + e.message);
+  }
+}
+
+async function deleteTheme(name) {
+  if (!confirm(`Delete theme "${name}"?`)) return;
+  const data = await api("/api/themes/delete", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ name }),
+  });
+  renderThemes(data.themes);
+}
+
+saveThemeBtn.addEventListener("click", async () => {
+  const name = themeNameInput.value.trim();
+  if (!name) return;
+  try {
+    const data = await api("/api/themes", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name }),
+    });
+    themeNameInput.value = "";
+    renderThemes(data.themes);
+  } catch (e) {
+    alert("Couldn't save theme: " + e.message);
+  }
+});
+
 fileInput.addEventListener("change", async () => {
   const file = fileInput.files[0];
   if (!file) return;
@@ -133,3 +280,6 @@ quitBtn.addEventListener("click", async () => {
 });
 
 refresh();
+loadLockDesign();
+loadLockBlur();
+loadThemes();
