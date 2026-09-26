@@ -103,7 +103,7 @@ cp launcher/omarchy-wallpaper-app.png ~/.local/share/icons/hicolor/128x128/apps/
 update-desktop-database ~/.local/share/applications
 ```
 
-Then launch "Wallpaper Manager" from your app menu, or run
+Then launch "WizardTinker" from your app menu, or run
 `~/.local/bin/omarchy-wallpaper-app` directly.
 
 > Edit `APP_DIR` in `~/.local/bin/omarchy-wallpaper-app` if you cloned this

@@ -1,6 +1,6 @@
 [Desktop Entry]
 Version=1.0
-Name=Wallpaper Manager
+Name=WizardTinker
 Comment=Import and switch between static and live wallpapers
 Exec=/home/YOUR_USERNAME/.local/bin/omarchy-wallpaper-app
 Terminal=false
