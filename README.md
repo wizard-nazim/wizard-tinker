@@ -20,6 +20,9 @@ video/GIF wallpapers properly.
 - **No background service** — launches on demand from your app menu, stops when you quit it
 - **Reconnects on open** — no boot-time autostart hook; opening the app re-applies your last saved wallpaper/live state itself
 - **Real app menu integration** — proper `.desktop` entry + icon, shows up in app search (e.g. Super+Space on Omarchy)
+- **Lock screen sync** — the lock screen picks up whatever's selected as your wallpaper automatically (static frame, for animated ones — see below)
+- **Set as profile picture** — push any gallery item straight to your login-screen avatar
+- **CLI** (`cli.py`) — change wallpapers from a script or Hyprland keybind, no browser needed
 
 ## Why it never touches the shell after setup
 
@@ -42,12 +45,46 @@ and never re-enables or re-disables it again. Every subsequent wallpaper
 change — static or animated — is just `mpvpaper` being pointed at a
 different file. No further `shell.json` edits, no further shell restarts.
 
+## Lock screen wallpaper
+
+Every wallpaper switch also repoints `~/.local/state/omarchy/current/background`
+(the symlink Omarchy's Quickshell lock screen reads on every lock) at the
+same item. The lock screen renders through a plain QML `Image` too, so like
+the desktop, it can only ever show a still — animated items point it at
+their cached static frame rather than the live file.
+
+## Profile picture
+
+The **PFP** button on any gallery card sets it as your AccountsService icon
+(the avatar shown on the SDDM login/greeter screen), via the same D-Bus call
+(`org.freedesktop.Accounts.User.SetIconFile`) GNOME/KDE avatar pickers use.
+polkit allows this for your own account without a password prompt. Animated
+items use their cached static frame, same as the lock screen.
+
+## CLI
+
+`cli.py` drives the same wallpaper-apply logic headlessly — handy for a
+Hyprland keybind to cycle wallpapers without opening the browser:
+
+```bash
+./venv/bin/python cli.py list                 # show gallery, mark current
+./venv/bin/python cli.py set <id-or-name>
+./venv/bin/python cli.py next   # or prev
+./venv/bin/python cli.py live-on   # or live-off
+```
+
+```conf
+# ~/.config/hypr/bindings.conf
+bind = SUPER, W, exec, ~/Projects/omarchy/live-wallpaper-proj/venv/bin/python ~/Projects/omarchy/live-wallpaper-proj/cli.py next
+```
+
 ## Requirements
 
 - Omarchy Linux (Hyprland + Quickshell)
 - `mpvpaper` (`omarchy pkg aur add mpvpaper`)
 - `ffmpeg` (thumbnail + static-frame generation)
 - Python 3
+- `gdbus` + `accounts-daemon` (both ship with a standard Omarchy install) — only needed for the profile-picture button
 
 ## Setup
 
@@ -86,6 +123,7 @@ Then launch "Wallpaper Manager" from your app menu, or run
 
 ```
 app.py              Flask backend — gallery state, mpvpaper control, shell.json bootstrap
+cli.py               Headless CLI — reuses app.py's apply logic, no server needed
 templates/index.html  Single-page UI
 static/              CSS + vanilla JS frontend
 wallpapers/          Imported files (gitignored — personal media, not published)

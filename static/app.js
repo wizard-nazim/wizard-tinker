@@ -31,13 +31,18 @@ function render() {
       <div class="meta">
         <span class="name" title="${item.name}">${item.name}</span>
         <span class="badge">${item.animated ? "animated" : "static"}</span>
+        <button class="pfp" title="Set as profile picture (login screen avatar)">PFP</button>
         <button class="del" title="Delete">✕</button>
       </div>
     `;
     card.querySelector(".thumb, img")?.addEventListener?.("click", () => select(item.id));
     card.addEventListener("click", (e) => {
-      if (e.target.closest(".del")) return;
+      if (e.target.closest(".del") || e.target.closest(".pfp")) return;
       select(item.id);
+    });
+    card.querySelector(".pfp").addEventListener("click", (e) => {
+      e.stopPropagation();
+      setProfilePic(item.id);
     });
     card.querySelector(".del").addEventListener("click", (e) => {
       e.stopPropagation();
@@ -74,6 +79,18 @@ async function select(id) {
     body: JSON.stringify({ id }),
   });
   render();
+}
+
+async function setProfilePic(id) {
+  try {
+    await api("/api/set-profile-pic", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id }),
+    });
+  } catch (e) {
+    alert("Couldn't set profile picture: " + e.message);
+  }
 }
 
 async function del(id) {

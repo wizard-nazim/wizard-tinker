@@ -114,6 +114,8 @@ header h1 {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  flex: 1;
+  min-width: 0;
 }
 
 .card .badge {
@@ -124,6 +126,19 @@ header h1 {
   color: var(--muted);
   flex-shrink: 0;
 }
+
+.card .pfp {
+  border: none;
+  background: none;
+  color: var(--muted);
+  cursor: pointer;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.3px;
+  padding: 0 4px;
+  flex-shrink: 0;
+}
+.card .pfp:hover { color: var(--accent); }
 
 .card .del {
   border: none;

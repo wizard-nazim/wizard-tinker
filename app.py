@@ -21,6 +21,7 @@ PID_FILE = APP_DIR / "server.pid"
 
 HOME = Path.home()
 SHELL_JSON = HOME / ".config" / "omarchy" / "shell.json"
+LOCK_BACKGROUND_LINK = HOME / ".local" / "state" / "omarchy" / "current" / "background"
 
 ANIMATED_EXTS = {".gif", ".mp4", ".webm", ".mkv", ".mov"}
 IMAGE_EXTS = {".jpg", ".jpeg", ".png", ".webp", ".bmp"}
@@ -124,6 +125,40 @@ def ensure_static_frame(item):
     return out_path
 
 
+def update_lock_background(path):
+    """Point Omarchy's Quickshell lock screen at `path`, atomically.
+
+    The lock screen re-reads this symlink (via `readlink -f`) every time it
+    locks, so this is all that's needed to keep it in sync -- no IPC call.
+    Written via rename rather than unlink+symlink so a lock that fires
+    mid-update never sees a missing target.
+    """
+    link = LOCK_BACKGROUND_LINK
+    if not link.parent.is_dir():
+        return
+    tmp = link.with_name(f"{link.name}.tmp{os.getpid()}")
+    tmp.symlink_to(path)
+    tmp.replace(link)
+
+
+def set_account_icon(path):
+    """Set this user's AccountsService icon (login-screen avatar) to `path`.
+
+    Uses the same D-Bus call GNOME/KDE avatar pickers use
+    (org.freedesktop.Accounts.User.SetIconFile), which polkit allows for the
+    active user with no password prompt -- no sudo needed. accounts-daemon
+    runs as root and reads `path` itself, so it just needs to exist.
+    """
+    uid = os.getuid()
+    return run([
+        "gdbus", "call", "--system",
+        "--dest", "org.freedesktop.Accounts",
+        "--object-path", f"/org/freedesktop/Accounts/User{uid}",
+        "--method", "org.freedesktop.Accounts.User.SetIconFile",
+        str(path),
+    ])
+
+
 def apply_current(state):
     """Apply state['current'] + state['live'] to the actual desktop.
 
@@ -161,6 +196,12 @@ def apply_current(state):
         notify(f"Wallpaper: {item['name']}")
 
     start_mpvpaper(display_path)
+
+    # The lock screen renders through a plain QML Image too, so it can only
+    # ever show a still -- point it at the static frame for animated items,
+    # even while they're playing live on the desktop.
+    lock_path = ensure_static_frame(item) if item["animated"] else display_path
+    update_lock_background(lock_path)
 
 
 @app.route("/")
@@ -234,6 +275,23 @@ def api_toggle_live():
     save_state(state)
     apply_current(state)
     return jsonify(state)
+
+
+@app.route("/api/set-profile-pic", methods=["POST"])
+def api_set_profile_pic():
+    item_id = request.json.get("id")
+    state = load_state()
+    item = next((g for g in state["gallery"] if g["id"] == item_id), None)
+    if item is None:
+        return jsonify({"error": "not found"}), 404
+
+    src_path = ensure_static_frame(item) if item["animated"] else WALLPAPERS_DIR / item["file"]
+    result = set_account_icon(src_path)
+    if result.returncode != 0:
+        return jsonify({"error": result.stderr.strip() or "failed to set profile picture"}), 500
+
+    notify(f"Profile picture: {item['name']}", glyph="person")
+    return jsonify({"ok": True})
 
 
 @app.route("/api/delete", methods=["POST"])
