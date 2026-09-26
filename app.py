@@ -3,7 +3,6 @@
 
 import json
 import os
-import shutil
 import signal
 import subprocess
 import sys
@@ -21,18 +20,9 @@ PID_FILE = APP_DIR / "server.pid"
 
 HOME = Path.home()
 SHELL_JSON = HOME / ".config" / "omarchy" / "shell.json"
-LOCK_BACKGROUND_LINK = HOME / ".local" / "state" / "omarchy" / "current" / "background"
-THEMES_FILE = APP_DIR / "themes.json"
 
 ANIMATED_EXTS = {".gif", ".mp4", ".webm", ".mkv", ".mov"}
 IMAGE_EXTS = {".jpg", ".jpeg", ".png", ".webp", ".bmp"}
-
-LOCK_DESIGN_IDS = [
-    "card", "classic", "editorial", "zen", "split", "terminal", "ring",
-    "poster", "dock", "aurora", "analog", "flip", "island", "cinema",
-    "sheet", "neon", "calendar", "frame", "dayline", "profile", "weather",
-    "music", "system", "rain",
-]
 
 MPV_OPTS = "no-audio loop-file=inf hwdec=auto panscan=1.0"
 
@@ -47,16 +37,6 @@ def load_state():
 
 def save_state(state):
     STATE_FILE.write_text(json.dumps(state, indent=2))
-
-
-def load_themes():
-    if THEMES_FILE.exists():
-        return json.loads(THEMES_FILE.read_text())
-    return {"themes": []}
-
-
-def save_themes(themes):
-    THEMES_FILE.write_text(json.dumps(themes, indent=2))
 
 
 def is_animated(filename):
@@ -143,44 +123,6 @@ def ensure_static_frame(item):
     return out_path
 
 
-def update_lock_background(path):
-    """Point Omarchy's Quickshell lock screen at `path`, atomically.
-
-    The lock screen re-reads this symlink (via `readlink -f`) every time it
-    locks, so this is all that's needed to keep it in sync -- no IPC call.
-    Written via rename rather than unlink+symlink so a lock that fires
-    mid-update never sees a missing target.
-    """
-    link = LOCK_BACKGROUND_LINK
-    if not link.parent.is_dir():
-        return
-    tmp = link.with_name(f"{link.name}.tmp{os.getpid()}")
-    tmp.symlink_to(path)
-    tmp.replace(link)
-
-
-def set_account_icon(path):
-    """Set this user's AccountsService icon (login-screen avatar) to `path`.
-
-    Uses the same D-Bus call GNOME/KDE avatar pickers use
-    (org.freedesktop.Accounts.User.SetIconFile), which polkit allows for the
-    active user with no password prompt -- no sudo needed. accounts-daemon
-    runs as root and reads `path` itself, so it just needs to exist.
-    """
-    uid = os.getuid()
-    return run([
-        "gdbus", "call", "--system",
-        "--dest", "org.freedesktop.Accounts",
-        "--object-path", f"/org/freedesktop/Accounts/User{uid}",
-        "--method", "org.freedesktop.Accounts.User.SetIconFile",
-        str(path),
-    ])
-
-
-def set_lock_design(design_id):
-    return run(["omarchy-shell", "lock", "setDesign", design_id])
-
-
 def apply_current(state):
     """Apply state['current'] + state['live'] to the actual desktop.
 
@@ -218,12 +160,6 @@ def apply_current(state):
         notify(f"Wallpaper: {item['name']}")
 
     start_mpvpaper(display_path)
-
-    # The lock screen renders through a plain QML Image too, so it can only
-    # ever show a still -- point it at the static frame for animated items,
-    # even while they're playing live on the desktop.
-    lock_path = ensure_static_frame(item) if item["animated"] else display_path
-    update_lock_background(lock_path)
 
 
 @app.route("/")
@@ -297,121 +233,6 @@ def api_toggle_live():
     save_state(state)
     apply_current(state)
     return jsonify(state)
-
-
-@app.route("/api/set-profile-pic", methods=["POST"])
-def api_set_profile_pic():
-    item_id = request.json.get("id")
-    state = load_state()
-    item = next((g for g in state["gallery"] if g["id"] == item_id), None)
-    if item is None:
-        return jsonify({"error": "not found"}), 404
-
-    src_path = ensure_static_frame(item) if item["animated"] else WALLPAPERS_DIR / item["file"]
-    result = set_account_icon(src_path)
-    if result.returncode != 0:
-        return jsonify({"error": result.stderr.strip() or "failed to set profile picture"}), 500
-
-    notify(f"Profile picture: {item['name']}", glyph="person")
-    return jsonify({"ok": True})
-
-
-@app.route("/api/lock-design")
-def api_lock_design_get():
-    result = run(["omarchy-shell", "lock", "design"])
-    return jsonify({"design": result.stdout.strip(), "designs": LOCK_DESIGN_IDS})
-
-
-@app.route("/api/lock-design", methods=["POST"])
-def api_lock_design_set():
-    design_id = request.json.get("id")
-    if design_id not in LOCK_DESIGN_IDS:
-        return jsonify({"error": "unknown design"}), 400
-    result = set_lock_design(design_id)
-    if result.returncode != 0:
-        return jsonify({"error": result.stderr.strip() or "failed to set design"}), 500
-    notify(f"Lock design: {design_id}", glyph="lock")
-    return jsonify({"ok": True, "lock_design": design_id})
-
-
-@app.route("/api/lock-design/preview", methods=["POST"])
-def api_lock_design_preview():
-    design_id = request.json.get("id")
-    if design_id not in LOCK_DESIGN_IDS:
-        return jsonify({"error": "unknown design"}), 400
-    run(["omarchy-shell", "lock", "previewDesign", design_id])
-    return jsonify({"ok": True})
-
-
-@app.route("/api/themes")
-def api_themes_list():
-    return jsonify(load_themes())
-
-
-@app.route("/api/themes", methods=["POST"])
-def api_themes_create():
-    name = (request.json.get("name") or "").strip()
-    if not name:
-        return jsonify({"error": "name required"}), 400
-
-    state = load_state()
-    themes = load_themes()
-    navbar_status = run(["omarchy-navbar", "status"]).stdout.strip().split(" ")[0]
-
-    themes["themes"] = [t for t in themes["themes"] if t["name"] != name]
-    themes["themes"].append({
-        "name": name,
-        "wallpaper_id": state.get("current"),
-        "lock_design": run(["omarchy-shell", "lock", "design"]).stdout.strip(),
-        "navbar_preset": navbar_status if navbar_status in ("pill", "default") else "default",
-    })
-    save_themes(themes)
-    return jsonify({"ok": True, "themes": themes["themes"]})
-
-
-def apply_theme(name):
-    """Apply a saved theme's wallpaper + lock design + navbar preset.
-
-    Shared by the /api/themes/apply route and the CLI's `theme apply`.
-    """
-    theme = next((t for t in load_themes()["themes"] if t["name"] == name), None)
-    if theme is None:
-        return False, "not found"
-
-    state = load_state()
-    wallpaper_id = theme.get("wallpaper_id")
-    if wallpaper_id and any(g["id"] == wallpaper_id for g in state["gallery"]):
-        item = next(g for g in state["gallery"] if g["id"] == wallpaper_id)
-        state["current"] = wallpaper_id
-        if not item["animated"]:
-            state["live"] = False
-        save_state(state)
-        apply_current(state)
-
-    if theme.get("lock_design"):
-        set_lock_design(theme["lock_design"])
-    run(["omarchy-navbar", theme.get("navbar_preset") or "default"])
-
-    notify(f"Theme: {name}", glyph="image")
-    return True, None
-
-
-@app.route("/api/themes/apply", methods=["POST"])
-def api_themes_apply():
-    name = request.json.get("name")
-    ok, error = apply_theme(name)
-    if not ok:
-        return jsonify({"error": error}), 404
-    return jsonify({"ok": True})
-
-
-@app.route("/api/themes/delete", methods=["POST"])
-def api_themes_delete():
-    name = request.json.get("name")
-    themes = load_themes()
-    themes["themes"] = [t for t in themes["themes"] if t["name"] != name]
-    save_themes(themes)
-    return jsonify({"ok": True, "themes": themes["themes"]})
 
 
 @app.route("/api/delete", methods=["POST"])

@@ -81,106 +81,6 @@ header h1 {
   padding: 24px 28px;
 }
 
-.gallery.small {
-  grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
-  gap: 10px;
-  padding: 0 28px 24px;
-}
-
-.panel {
-  border-bottom: 1px solid var(--border);
-}
-
-.panel-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 16px;
-  padding: 20px 28px 14px;
-}
-
-.panel-header h2 {
-  font-size: 15px;
-  margin: 0;
-  font-weight: 600;
-  color: var(--muted);
-}
-
-.theme-create {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-
-.theme-create input[type="text"] {
-  background: var(--panel);
-  border: 1px solid var(--border);
-  color: var(--text);
-  padding: 8px 12px;
-  border-radius: 8px;
-  font-size: 13px;
-  width: 160px;
-}
-
-.design-card {
-  background: var(--panel);
-  border: 2px solid var(--border);
-  border-radius: 10px;
-  padding: 14px 8px;
-  text-align: center;
-  cursor: pointer;
-  font-size: 12px;
-  transition: border-color 0.15s, transform 0.15s;
-}
-
-.design-card:hover { transform: translateY(-2px); border-color: #454859; }
-.design-card.active { border-color: var(--accent); color: var(--text); }
-.design-card:not(.active) { color: var(--muted); }
-
-.theme-card {
-  background: var(--panel);
-  border: 2px solid var(--border);
-  border-radius: 10px;
-  padding: 10px 12px;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  font-size: 13px;
-}
-
-.theme-card .name {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.theme-card .theme-actions {
-  display: flex;
-  gap: 8px;
-  flex-shrink: 0;
-}
-
-.theme-card .apply {
-  border: none;
-  background: none;
-  color: var(--accent);
-  cursor: pointer;
-  font-size: 12px;
-  font-weight: 600;
-  padding: 0;
-}
-
-.theme-card .del {
-  border: none;
-  background: none;
-  color: var(--muted);
-  cursor: pointer;
-  font-size: 13px;
-  padding: 0;
-}
-.theme-card .del:hover { color: var(--danger); }
-
 .card {
   background: var(--panel);
   border: 2px solid var(--border);
@@ -226,19 +126,6 @@ header h1 {
   color: var(--muted);
   flex-shrink: 0;
 }
-
-.card .pfp {
-  border: none;
-  background: none;
-  color: var(--muted);
-  cursor: pointer;
-  font-size: 10px;
-  font-weight: 600;
-  letter-spacing: 0.3px;
-  padding: 0 4px;
-  flex-shrink: 0;
-}
-.card .pfp:hover { color: var(--accent); }
 
 .card .del {
   border: none;

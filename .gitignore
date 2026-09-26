@@ -4,7 +4,6 @@ __pycache__/
 server.log
 server.pid
 state.json
-themes.json
 wallpapers/*
 !wallpapers/.gitkeep
 thumbs/*

@@ -12,6 +12,10 @@ frame — it can't animate. This app renders everything through
 still image just as cheaply (idles at ~0% CPU once painted) and animates
 video/GIF wallpapers properly.
 
+Deliberately scoped to just this — wallpaper import, gallery, and the
+live/static toggle. Lock-screen and login-screen integration was tried and
+pulled back out; see [History](#history).
+
 ## Features
 
 - **Gallery** — import any number of images/GIFs/videos, switch between them from a browser UI
@@ -20,10 +24,6 @@ video/GIF wallpapers properly.
 - **No background service** — launches on demand from your app menu, stops when you quit it
 - **Reconnects on open** — no boot-time autostart hook; opening the app re-applies your last saved wallpaper/live state itself
 - **Real app menu integration** — proper `.desktop` entry + icon, shows up in app search (e.g. Super+Space on Omarchy)
-- **Lock screen sync** — the lock screen picks up whatever's selected as your wallpaper automatically (static frame, for animated ones — see below)
-- **Set as profile picture** — push any gallery item straight to your login-screen avatar
-- **Lock screen design picker** — switch between the lock screen's ~24 designs
-- **Themes** — save the current wallpaper + lock design + navbar preset as a named preset, apply it all in one click
 - **CLI** (`cli.py`) — change wallpapers from a script or Hyprland keybind, no browser needed
 
 ## Why it never touches the shell after setup
@@ -47,41 +47,6 @@ and never re-enables or re-disables it again. Every subsequent wallpaper
 change — static or animated — is just `mpvpaper` being pointed at a
 different file. No further `shell.json` edits, no further shell restarts.
 
-## Lock screen wallpaper
-
-Every wallpaper switch also repoints `~/.local/state/omarchy/current/background`
-(the symlink Omarchy's Quickshell lock screen reads on every lock) at the
-same item. The lock screen renders through a plain QML `Image` too, so like
-the desktop, it can only ever show a still — animated items point it at
-their cached static frame rather than the live file.
-
-## Profile picture
-
-The **PFP** button on any gallery card sets it as your AccountsService icon
-(the avatar shown on the SDDM login/greeter screen), via the same D-Bus call
-(`org.freedesktop.Accounts.User.SetIconFile`) GNOME/KDE avatar pickers use.
-polkit allows this for your own account without a password prompt. Animated
-items use their cached static frame, same as the lock screen.
-
-## Lock screen design
-
-Requires [omarchy-lock-explorer](https://github.com/SirJul1337/omarchy-lock-explorer)
-(a third-party Quickshell lock plugin with ~24 designs) — the picker calls its
-existing `omarchy-shell lock setDesign <id>` / `previewDesign <id>` commands.
-
-An adjustable blur control was attempted here (a persisted override added
-locally to that plugin's `Service.qml`) but broke real password unlock in
-practice, so it was fully reverted — the plugin is back to its unmodified
-upstream state. Not revisiting this without a much more cautious, isolated
-test setup.
-
-## Themes
-
-Save the current wallpaper + lock screen design + `omarchy-navbar` preset as
-a named bundle (`themes.json`, gitignored — per-machine, references local
-wallpaper ids), then re-apply all three in one click or via
-`cli.py theme apply <name>`.
-
 ## CLI
 
 `cli.py` drives the same wallpaper-apply logic headlessly — handy for a
@@ -92,8 +57,6 @@ Hyprland keybind to cycle wallpapers without opening the browser:
 ./venv/bin/python cli.py set <id-or-name>
 ./venv/bin/python cli.py next   # or prev
 ./venv/bin/python cli.py live-on   # or live-off
-./venv/bin/python cli.py lock-design <id>
-./venv/bin/python cli.py theme apply <name>   # wallpaper + lock design + navbar preset
 ```
 
 ```conf
@@ -107,7 +70,6 @@ bind = SUPER, W, exec, ~/Projects/omarchy/live-wallpaper-proj/venv/bin/python ~/
 - `mpvpaper` (`omarchy pkg aur add mpvpaper`)
 - `ffmpeg` (thumbnail + static-frame generation)
 - Python 3
-- `gdbus` + `accounts-daemon` (both ship with a standard Omarchy install) — only needed for the profile-picture button
 
 ## Setup
 
@@ -152,7 +114,6 @@ static/              CSS + vanilla JS frontend
 wallpapers/          Imported files (gitignored — personal media, not published)
 thumbs/              Generated gallery thumbnails + cached static frames (gitignored)
 state.json           Current selection/live flag + gallery index (gitignored — per-machine state)
-themes.json          Named theme bundles (gitignored — per-machine, references local wallpaper ids)
 launcher/            .desktop entry, launcher script, and icon for app-menu integration
 ```
 
@@ -160,6 +121,21 @@ launcher/            .desktop entry, launcher script, and icon for app-menu inte
 
 - **Per-monitor wallpapers** — assign a different image/GIF to each connected
   screen instead of one wallpaper across all of them.
+- **Per-workspace wallpapers** — different background per Hyprland workspace.
+
+## History
+
+Lock-screen background sync, a login-screen "set as profile picture"
+button, a lock-screen design picker, an adjustable lock-screen blur
+control, and a "Themes" bundle feature were all built and shipped here at
+one point. The blur control (a persisted override added to a third-party
+lock plugin's `Service.qml`) broke real password unlock on the actual lock
+screen — confirmed twice, once bad enough to require a hard reboot. All of
+it was removed, including the parts that worked fine on their own (the
+design picker, profile picture, Themes), rather than leave the app
+touching the lock screen at all. This app now only does wallpaper import,
+gallery, and the live/static toggle, and won't take on lock-screen or
+login-screen integration again.
 
 ## License
 

@@ -8,8 +8,6 @@ Usage:
   cli.py prev
   cli.py live-on
   cli.py live-off
-  cli.py lock-design <id>
-  cli.py theme apply <name>
 """
 
 import sys
@@ -63,20 +61,6 @@ def cmd_live(state, on):
     app.apply_current(state)
 
 
-def cmd_lock_design(design_id):
-    if design_id not in app.LOCK_DESIGN_IDS:
-        sys.exit(f"unknown design: {design_id}")
-    result = app.set_lock_design(design_id)
-    if result.returncode != 0:
-        sys.exit(result.stderr.strip() or "failed to set design")
-
-
-def cmd_theme_apply(name):
-    ok, error = app.apply_theme(name)
-    if not ok:
-        sys.exit(error)
-
-
 def main():
     args = sys.argv[1:]
     state = app.load_state()
@@ -95,10 +79,6 @@ def main():
         cmd_live(state, True)
     elif args[0] == "live-off":
         cmd_live(state, False)
-    elif args[0] == "lock-design" and len(args) == 2:
-        cmd_lock_design(args[1])
-    elif args[0] == "theme" and len(args) == 3 and args[1] == "apply":
-        cmd_theme_apply(args[2])
     else:
         sys.exit(__doc__)
 
