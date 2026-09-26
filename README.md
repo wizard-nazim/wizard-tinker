@@ -22,8 +22,8 @@ video/GIF wallpapers properly.
 - **Real app menu integration** — proper `.desktop` entry + icon, shows up in app search (e.g. Super+Space on Omarchy)
 - **Lock screen sync** — the lock screen picks up whatever's selected as your wallpaper automatically (static frame, for animated ones — see below)
 - **Set as profile picture** — push any gallery item straight to your login-screen avatar
-- **Lock screen design picker + adjustable blur** — switch between the lock screen's ~24 designs and control how blurred the wallpaper behind it is
-- **Themes** — save the current wallpaper + lock design + navbar preset + blur as a named preset, apply it all in one click
+- **Lock screen design picker** — switch between the lock screen's ~24 designs
+- **Themes** — save the current wallpaper + lock design + navbar preset as a named preset, apply it all in one click
 - **CLI** (`cli.py`) — change wallpapers from a script or Hyprland keybind, no browser needed
 
 ## Why it never touches the shell after setup
@@ -63,24 +63,23 @@ The **PFP** button on any gallery card sets it as your AccountsService icon
 polkit allows this for your own account without a password prompt. Animated
 items use their cached static frame, same as the lock screen.
 
-## Lock screen design + blur
+## Lock screen design
 
 Requires [omarchy-lock-explorer](https://github.com/SirJul1337/omarchy-lock-explorer)
 (a third-party Quickshell lock plugin with ~24 designs) — the picker calls its
-`omarchy-shell lock setDesign <id>` / `previewDesign <id>` commands. Blur is
-new capability added locally to that plugin (not upstream): a persisted,
-global override (`omarchy-shell lock setBlur <0-1>`) that every design's
-`Wallpaper` background honors, on top of its own hardcoded default. See
-`~/.config/omarchy/plugins/io.github.sirjul1337.lock-explorer/LOCAL_CHANGES.md`
-for exactly what was changed there — a future plugin update could conflict
-with it. Adding the IPC function required one `omarchy restart shell`;
-changing the value afterward doesn't.
+existing `omarchy-shell lock setDesign <id>` / `previewDesign <id>` commands.
+
+An adjustable blur control was attempted here (a persisted override added
+locally to that plugin's `Service.qml`) but broke real password unlock in
+practice, so it was fully reverted — the plugin is back to its unmodified
+upstream state. Not revisiting this without a much more cautious, isolated
+test setup.
 
 ## Themes
 
-Save the current wallpaper + lock screen design + `omarchy-navbar` preset +
-blur as a named bundle (`themes.json`, gitignored — per-machine, references
-local wallpaper ids), then re-apply all four in one click or via
+Save the current wallpaper + lock screen design + `omarchy-navbar` preset as
+a named bundle (`themes.json`, gitignored — per-machine, references local
+wallpaper ids), then re-apply all three in one click or via
 `cli.py theme apply <name>`.
 
 ## CLI
@@ -94,7 +93,7 @@ Hyprland keybind to cycle wallpapers without opening the browser:
 ./venv/bin/python cli.py next   # or prev
 ./venv/bin/python cli.py live-on   # or live-off
 ./venv/bin/python cli.py lock-design <id>
-./venv/bin/python cli.py theme apply <name>
+./venv/bin/python cli.py theme apply <name>   # wallpaper + lock design + navbar preset
 ```
 
 ```conf

@@ -5,8 +5,6 @@ const liveLabel = document.getElementById("live-label");
 const fileInput = document.getElementById("file-input");
 const quitBtn = document.getElementById("quit-btn");
 const lockDesignsEl = document.getElementById("lock-designs");
-const blurSlider = document.getElementById("blur-slider");
-const blurValueEl = document.getElementById("blur-value");
 const themesEl = document.getElementById("themes");
 const themeNameInput = document.getElementById("theme-name");
 const saveThemeBtn = document.getElementById("save-theme-btn");
@@ -14,14 +12,6 @@ const saveThemeBtn = document.getElementById("save-theme-btn");
 let state = { current: null, live: false, gallery: [] };
 let currentLockDesign = null;
 let LOCK_DESIGN_IDS = [];
-
-function debounce(fn, ms) {
-  let timer;
-  return (...args) => {
-    clearTimeout(timer);
-    timer = setTimeout(() => fn(...args), ms);
-  };
-}
 
 async function api(path, opts) {
   const res = await fetch(path, opts);
@@ -158,30 +148,6 @@ async function loadLockDesign() {
   renderLockDesigns(LOCK_DESIGN_IDS);
 }
 
-async function loadLockBlur() {
-  const data = await api("/api/lock-blur");
-  const pct = data.blur === null ? 85 : Math.round(data.blur * 100);
-  blurSlider.value = pct;
-  blurValueEl.textContent = pct + "%";
-}
-
-const sendBlur = debounce(async (pct) => {
-  try {
-    await api("/api/lock-blur", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ value: pct / 100 }),
-    });
-  } catch (e) {
-    alert("Couldn't set blur: " + e.message);
-  }
-}, 300);
-
-blurSlider.addEventListener("input", () => {
-  blurValueEl.textContent = blurSlider.value + "%";
-  sendBlur(Number(blurSlider.value));
-});
-
 function renderThemes(themes) {
   themesEl.innerHTML = "";
   if (themes.length === 0) {
@@ -218,7 +184,6 @@ async function applyTheme(name) {
     });
     await refresh();
     await loadLockDesign();
-    await loadLockBlur();
   } catch (e) {
     alert("Couldn't apply theme: " + e.message);
   }
@@ -281,5 +246,4 @@ quitBtn.addEventListener("click", async () => {
 
 refresh();
 loadLockDesign();
-loadLockBlur();
 loadThemes();

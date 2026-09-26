@@ -343,33 +343,6 @@ def api_lock_design_preview():
     return jsonify({"ok": True})
 
 
-@app.route("/api/lock-blur")
-def api_lock_blur_get():
-    result = run(["omarchy-shell", "lock", "blur"])
-    try:
-        value = float(result.stdout.strip())
-    except ValueError:
-        value = None
-    if value is not None and value < 0:
-        value = None  # QML's sentinel for "no override set"
-    return jsonify({"blur": value})
-
-
-@app.route("/api/lock-blur", methods=["POST"])
-def api_lock_blur_set():
-    value = request.json.get("value")
-    try:
-        value = float(value)
-    except (TypeError, ValueError):
-        return jsonify({"error": "invalid blur value"}), 400
-    if not 0 <= value <= 1:
-        return jsonify({"error": "blur must be between 0 and 1"}), 400
-    result = run(["omarchy-shell", "lock", "setBlur", str(value)])
-    if result.returncode != 0:
-        return jsonify({"error": result.stderr.strip() or "failed to set blur"}), 500
-    return jsonify({"ok": True, "lock_blur": value})
-
-
 @app.route("/api/themes")
 def api_themes_list():
     return jsonify(load_themes())
@@ -384,11 +357,6 @@ def api_themes_create():
     state = load_state()
     themes = load_themes()
     navbar_status = run(["omarchy-navbar", "status"]).stdout.strip().split(" ")[0]
-    try:
-        lock_blur = float(run(["omarchy-shell", "lock", "blur"]).stdout.strip())
-    except ValueError:
-        lock_blur = -1
-    lock_blur_out = lock_blur if lock_blur >= 0 else None
 
     themes["themes"] = [t for t in themes["themes"] if t["name"] != name]
     themes["themes"].append({
@@ -396,14 +364,13 @@ def api_themes_create():
         "wallpaper_id": state.get("current"),
         "lock_design": run(["omarchy-shell", "lock", "design"]).stdout.strip(),
         "navbar_preset": navbar_status if navbar_status in ("pill", "default") else "default",
-        "lock_blur": lock_blur_out,
     })
     save_themes(themes)
     return jsonify({"ok": True, "themes": themes["themes"]})
 
 
 def apply_theme(name):
-    """Apply a saved theme's wallpaper + lock design + navbar preset + blur.
+    """Apply a saved theme's wallpaper + lock design + navbar preset.
 
     Shared by the /api/themes/apply route and the CLI's `theme apply`.
     """
@@ -423,8 +390,6 @@ def apply_theme(name):
 
     if theme.get("lock_design"):
         set_lock_design(theme["lock_design"])
-    if theme.get("lock_blur") is not None:
-        run(["omarchy-shell", "lock", "setBlur", str(theme["lock_blur"])])
     run(["omarchy-navbar", theme.get("navbar_preset") or "default"])
 
     notify(f"Theme: {name}", glyph="image")

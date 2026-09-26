@@ -106,24 +106,6 @@ header h1 {
   color: var(--muted);
 }
 
-.blur-control {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  font-size: 13px;
-  color: var(--muted);
-}
-
-.blur-control input[type="range"] {
-  accent-color: var(--accent);
-  width: 140px;
-}
-
-#blur-value {
-  min-width: 36px;
-  text-align: right;
-}
-
 .theme-create {
   display: flex;
   align-items: center;
